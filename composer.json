@@ -9,12 +9,12 @@
         }
     ],
     "require": {
-        "yiisoft/yii2": "~2.0",
+        "yiisoft/yii2": "^2.0",
         "phpoffice/phpexcel": "^1.8"
     },
     "autoload": {
         "psr-4": {
-            "sateler\\ExcelParser\\": ""
+            "sateler\\excelparser\\": ""
         }
     }
 }

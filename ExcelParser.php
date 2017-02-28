@@ -6,7 +6,7 @@
  * and open the template in the editor.
  */
 
-namespace sateler\ExcelParser;
+namespace sateler\excelparser;
 
 use Exception;
 use Yii;
