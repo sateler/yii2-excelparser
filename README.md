@@ -1,8 +1,8 @@
 # yii2-excelparser
 Parse excel files using PHP_Excel into yii2 models
-# Excamples:
+# Examples:
 Model
-```
+```php
 class ImportForm extends \yii\base\Model
 {
     private static $fields = [
@@ -90,7 +90,7 @@ class ImportForm extends \yii\base\Model
 }
 ```
 Controller
-```
+```php
 
     public function actionImport()
     {
