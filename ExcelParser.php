@@ -1,18 +1,11 @@
 <?php
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 namespace sateler\excelparser;
 
 use Exception;
 use Yii;
 use yii\helpers\ArrayHelper;
 use yii\base\InvalidConfigException;
-use PHPExcel_Exception;
 
 /**
  * 
@@ -60,6 +53,14 @@ class ExcelParser extends \yii\base\Object {
 
     /** @var integer|boolean The number of rows to read at a time. Set to false (the default) to disable */
     public $chunkSize = false;
+
+    /** @var integer|boolean Whether to save rows in an internal array to be able to retrieve it later */
+    public $saveData = true;
+    
+    /**
+     * @var callable A function to do something with the newly created object
+     */
+    public $onObjectParsed = null;
 
     /** @var \PHPExcel_Worksheet */
     public $worksheet;
@@ -123,24 +124,6 @@ class ExcelParser extends \yii\base\Object {
         $this->doParse();
     }
 
-    function __destruct() {
-        $this->modelClass = null;
-        $this->fileName = null;
-        $this->fields = null;
-        $this->requiredFields = null;
-        $this->isHeaderRow = null;
-        $this->createObject = null;
-        $this->chunkSize = null;
-        $this->worksheet = null;
-        $this->headerRowIndex = null;
-        $this->dataRowIndex = null;
-        $this->extraFields = null;
-        $this->missingFields = null;
-        $this->headerColumns = null;
-        $this->error = null;
-        $this->data = null;
-    }
-
     public function getData() {
         return $this->data;
     }
@@ -198,7 +181,16 @@ class ExcelParser extends \yii\base\Object {
                 return false;
             }
             $oldParsedData = $parsedData;
-            $this->data[$rowIndex] = $parsedData;
+            if($this->onObjectParsed != null ) {
+                if(false === call_user_func($this->onObjectParsed, $parsedData, $rowIndex)) {
+                    // stop
+                    Yii::error("User returned false on onObjectParsed callable.");
+                    return false;
+                }
+            }
+            if($this->saveData) {
+                $this->data[$rowIndex] = $parsedData;
+            }
         });
     }
     
@@ -277,7 +269,7 @@ class ExcelParser extends \yii\base\Object {
                     return;
                 }
                 $this->dataRowIndex = $curCell->getRow();
-                Yii::info("Found header row: {$this->headerRowIndex}");
+                Yii::info("Found header row: {$this->headerRowIndex}", __CLASS__);
                 return false;
             }
         });
@@ -394,11 +386,10 @@ class ChunkedPseudoIterator {
             $objPHPExcel->setActiveSheetIndexByName($this->sheetInfo['worksheetName']);
             $sheet = $objPHPExcel->getActiveSheet();
             
-            $rangeEnd = min($row + $this->chunkSize, $this->sheetInfo['totalRows'] + 1);
+            $rangeEnd = min($row + $this->chunkSize, $sheet->getHighestRow());
             
             for($i=$row; $i < $rangeEnd; $i++)
             {
-                
                 $objRow = $sheet->getRowIterator($i)->current();
                 $ret = call_user_func($function, $objRow, $i, $sheet);
                 if ($ret === false) {
@@ -409,7 +400,7 @@ class ChunkedPseudoIterator {
 
             $objPHPExcel->disconnectWorksheets(); 
             unset($objPHPExcel);
-            if( $rangeEnd > $this->sheetInfo['totalRows']) {
+            if( ($row + $this->chunkSize) > $this->sheetInfo['totalRows']) {
                 $ended =true;
             }
             $row += $this->chunkSize;
@@ -458,4 +449,3 @@ class ChunkReadFilter implements \PHPExcel_Reader_IReadFilter
         return false;
     }
 }
-
