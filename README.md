@@ -1,8 +1,8 @@
 # yii2-excelparser
 Parse excel files using PHP_Excel into yii2 models
-# Excamples:
+# Examples:
 Model
-```
+```php
 class ImportForm extends \yii\base\Model
 {
     private static $fields = [
@@ -50,25 +50,28 @@ class ImportForm extends \yii\base\Model
                 'fields' => self::$fields,
                 'requiredFields' => self::$required,
                 'setNullValues' => false,
-                'modelClass' => 'common\models\SomeModel',
+                'modelClass' => SomeModel::className(),
                 // Use either modelClass or createObject...
-                'createObject' => function ($prevRow) use ($import) {
+                // createObject is called before parsing the row.
+                'createObject' => function ($prevRow) use ($someData) {
                     $newObj = new SomeModel();
-                    $newObj->import_id = $import->id;
+                    $newObj->parent_id = $someData->id;
                     if (!$prevRow) {
                         return $newObj;
                     }
+                    // set some defualt data from previous created object
                     foreach(self::$copyFields as $field) {
                         $newObj->$field = $prevRow->$field;
                     }
                     return $newObj;
-                }
+                },
+                // Will save the data in an internal array, set to false for large datasets to save memory
+                'saveData' => false,
+                // Callback after object has been created and parsed
+                'onObjectParsed' => function(SomeModel $data, $rowIndex) {
+                    return $data->save();
+                },
             ]);
-        }
-        catch (\Exception $e) {
-            Yii::error("Error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            $this->addError('file', 'Archivo con formato inválido');
-            return false;
         }
         if ($parser->getError()) {
             Yii::error("ExcelParser Error: " . $parser->getError());
@@ -76,8 +79,8 @@ class ImportForm extends \yii\base\Model
             return false;
         }
         
+        // If 'savedata' is set to true, then get the data:
         $allData = $parser->getData();
-        unset($parser);
         foreach($allData as $i => $data) {
             if (!$data->save()) {
                 $this->addError('file', "Error en fila $i: " . implode("\n", $data->getFirstErrors()));
@@ -90,7 +93,7 @@ class ImportForm extends \yii\base\Model
 }
 ```
 Controller
-```
+```php
 
     public function actionImport()
     {
@@ -99,11 +102,11 @@ Controller
         if ($form->load(Yii::$app->request->post()) && $form->validate()) {
             if($form->import()) {
                 Yii::$app->session->setFlash('success', 'Success');
+                return $this->redirect(['import']);
             }
             else {
                 Yii::$app->session->setFlash('error', 'Error');
             }
-            return $this->redirect(['import']);
         }
         
         return $this->render('import', [
