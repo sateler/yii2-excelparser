@@ -6,6 +6,7 @@ use Exception;
 use Yii;
 use yii\helpers\ArrayHelper;
 use yii\base\InvalidConfigException;
+use PHPExcel_Exception;
 
 /**
  * 
