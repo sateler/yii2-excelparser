@@ -387,7 +387,7 @@ class ChunkedPseudoIterator {
             $objPHPExcel->setActiveSheetIndexByName($this->sheetInfo['worksheetName']);
             $sheet = $objPHPExcel->getActiveSheet();
             
-            $rangeEnd = min($row + $this->chunkSize, $sheet->getHighestRow());
+            $rangeEnd = min($row + $this->chunkSize, $sheet->getHighestRow() + 1);
             
             for($i=$row; $i < $rangeEnd; $i++)
             {
