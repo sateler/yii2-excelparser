@@ -7,6 +7,7 @@ use Yii;
 use yii\helpers\ArrayHelper;
 use yii\base\InvalidConfigException;
 use PHPExcel_Exception;
+use yii\base\BaseObject;
 
 /**
  * 
@@ -18,7 +19,7 @@ use PHPExcel_Exception;
  *
  * @author felipe
  */
-class ExcelParser extends \yii\base\Object {
+class ExcelParser extends BaseObject {
 
     /** @var string The name of the model class to create. Required. */
     public $modelClass;
