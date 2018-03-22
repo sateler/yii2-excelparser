@@ -27,6 +27,9 @@ class ExcelParser extends BaseObject {
     /** @var string The name of the file to load. Required if worksheet is not passed */
     public $fileName;
 
+    /** @var string The name of the worksheet to load. Optional, used only if worksheet is not passed and fileName is used */
+    public $worksheetName;
+
     /**
      * @var array A map of key-value pairs, where the key is the name in the
      *  excel file, and the value is the corresponding field in the model.
@@ -296,13 +299,25 @@ class ExcelParser extends BaseObject {
             Yii::trace("Reader created", __CLASS__);
             $excel = $reader->load($this->fileName);
             Yii::trace("Excel Opened", __CLASS__);
-            $this->worksheet = $excel->getActiveSheet();
+            $this->worksheet = $this->getWorksheetFromExcelObj($excel);
             Yii::trace("End excel open", __CLASS__);
             return new AllPseudoIterator($this->worksheet);
         }
         else {
-            return new ChunkedPseudoIterator($this->fileName, $this->chunkSize);
+            return new ChunkedPseudoIterator($this->fileName, $this->chunkSize, $this->worksheetName);
         }
+    }
+
+    private function getWorksheetFromExcelObj(\PHPExcel $excel)
+    {
+        if($this->worksheetName) {
+            $worksheet = $excel->getSheetByName($this->worksheetName);
+            if(!$worksheet) {
+                throw new Exception("No se encontró la hoja con nombre {$this->worksheetName}");
+            }
+            return $worksheet;
+        }
+        return $excel->getActiveSheet();
     }
 
     private function getFirstCellWithData($row) {
@@ -358,22 +373,36 @@ class ChunkedPseudoIterator {
     
     public $startRow = 1;
     
-    public function __construct($fileName, $chunkSize) {
+    public function __construct($fileName, $chunkSize, $worksheetName = null)
+    {
         $this->fileName = $fileName;
         $this->chunkSize = $chunkSize;
         $this->reader = \PHPExcel_IOFactory::createReaderForFile($fileName);
         
         // Get sheet and row/column info
         $sheets = $this->reader->listWorksheetInfo($this->fileName);
-        if(count($sheets)<=0)
-        {
-            return "No se ecnontraron hojas con datos.";
-        }
-        $this->sheetInfo = $sheets[0];
+        $this->sheetInfo = $this->getWorksheetInfo($sheets, $worksheetName);
         
         $this->filter = new ChunkReadFilter();
         $this->filter->setWorksheet($this->sheetInfo['worksheetName']);
         $this->reader->setReadFilter($this->filter);
+    }
+
+    private function getWorksheetInfo($sheets, $worksheetName)
+    {
+        if(count($sheets) <= 0) {
+            throw new Exception("No se encontraron hojas con datos.");
+        }
+        if($worksheetName) {
+            $worksheetInfos = ArrayHelper::index($sheets, 'worksheetName');
+            $worksheetInfo = ArrayHelper::getValue($worksheetInfos, $worksheetName);
+            if(!$worksheetInfo) {
+                throw new Exception("No se encontró la hoja con nombre $worksheetName");
+            }
+            return $worksheetInfo;
+        }
+        // If no worksheet name provided just use the first one
+        return $sheets[0];
     }
     
     public function forEachRow($function) {

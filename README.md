@@ -47,6 +47,7 @@ class ImportForm extends \yii\base\Model
         try {
             $parser = new ExcelParser([
                 'fileName' => $this->file->tempName,
+                //'worksheetName' => 'Sheet 1',
                 'fields' => self::$fields,
                 'requiredFields' => self::$required,
                 'setNullValues' => false,
