@@ -66,6 +66,11 @@ class ExcelParser extends BaseObject {
      * @var callable A function to do something with the newly created object
      */
     public $onObjectParsed = null;
+    
+    /**
+     * @var callable A function to modify the header column array before parsing data
+     */
+    public $modifyHeaderColumns = null;
 
     /** @var \PHPExcel_Worksheet */
     public $worksheet;
@@ -124,6 +129,10 @@ class ExcelParser extends BaseObject {
         
         if (is_null($this->isHeaderRow)) {
             $this->isHeaderRow = function () { return true; };
+        }
+        
+        if (is_null($this->modifyHeaderColumns)) {
+            $this->modifyHeaderColumns = function ($cols) { return $cols; };
         }
 
         $this->doParse();
@@ -254,6 +263,8 @@ class ExcelParser extends BaseObject {
             }
             return false;
         });
+
+        $this->headerColumns = call_user_func($this->modifyHeaderColumns, $this->headerColumns);
     }
 
     private function findHeaderRow() {

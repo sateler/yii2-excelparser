@@ -68,6 +68,11 @@ class ImportForm extends \yii\base\Model
                 },
                 // Will save the data in an internal array, set to false for large datasets to save memory
                 'saveData' => false,
+                // Modify parsed header columns, each item is a [name => column_number] pair
+                'modifyHeaderColumns' => function($cols) {
+                    $cols["Custom Header"] = 11; // get the values from column 11 for each row as the 'Custom Header' attribute
+                    return $cols;
+                },
                 // Callback after object has been created and parsed
                 'onObjectParsed' => function(SomeModel $data, $rowIndex) {
                     return $data->save();
