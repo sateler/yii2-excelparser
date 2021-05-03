@@ -6,8 +6,16 @@ use Exception;
 use Yii;
 use yii\helpers\ArrayHelper;
 use yii\base\InvalidConfigException;
-use PHPExcel_Exception;
 use yii\base\BaseObject;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\BaseReader;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
+use PhpOffice\PhpSpreadsheet\Worksheet\Row;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Exception as PhpSpreadsheetException;
 
 /**
  *
@@ -72,7 +80,7 @@ class ExcelParser extends BaseObject {
      */
     public $modifyHeaderColumns = null;
 
-    /** @var \PHPExcel_Worksheet */
+    /** @var Worksheet */
     public $worksheet;
 
     /** @var boolean Wether to set values that are null */
@@ -106,7 +114,7 @@ class ExcelParser extends BaseObject {
         if (!$this->modelClass && !$this->createObject) {
             throw new InvalidConfigException("createObject or modelClass is required");
         }
-        if (!$this->fileName && !($this->worksheet instanceof \PHPExcel_Worksheet)) {
+        if (!$this->fileName && !($this->worksheet instanceof Worksheet)) {
             throw new InvalidConfigException("fileName or worksheet is required");
         }
 
@@ -169,16 +177,16 @@ class ExcelParser extends BaseObject {
 
     private function doParse() {
         try {
-            Yii::trace('Begin findHeaderRow', __CLASS__);
+            Yii::debug('Begin findHeaderRow', __CLASS__);
             $this->findHeaderRow();
-            Yii::trace('Begin parseHeaderRow', __CLASS__);
+            Yii::debug('Begin parseHeaderRow', __CLASS__);
             $this->parseHeaderRow();
-            Yii::trace('Begin parseData', __CLASS__);
+            Yii::debug('Begin parseData', __CLASS__);
             $this->parseData();
-            Yii::trace('End parseData', __CLASS__);
+            Yii::debug('End parseData', __CLASS__);
         }
         catch (\Exception $exc) {
-            \Yii::error($exc->getMessage() . "\n" . $exc->getTraceAsString(), __CLASS__);
+            Yii::error($exc->getMessage() . "\n" . $exc->getTraceAsString(), __CLASS__);
             $this->error = $exc->getMessage();
         }
     }
@@ -208,9 +216,8 @@ class ExcelParser extends BaseObject {
         });
     }
 
-    private function parseRow($row, $sheet, &$parsedData) {
+    private function parseRow(Row $row, Worksheet $sheet, &$parsedData) {
         $hasAnyValue = false;
-        /* @var $row \PHPExcel_Worksheet_Row */
         $rowIndex = $row->getRowIndex();
         foreach ($this->headerColumns as $key => $position) {
             $cell = $sheet->getCellByColumnAndRow($position, $rowIndex);
@@ -218,8 +225,8 @@ class ExcelParser extends BaseObject {
             $hasValue = !(is_null($value) || $value === '');
             $hasAnyValue = $hasAnyValue || $hasValue;
             if ($this->setNullValues || $hasValue) {
-                if (\PHPExcel_Shared_Date::isDateTime($cell)) {
-                    $value = \PHPExcel_Shared_Date::ExcelToPHPObject($value);
+                if (Date::isDateTime($cell)) {
+                    $value = Date::excelToDateTimeObject($value);
                 }
                 else if (is_numeric($value) && isset($parsedData->$key)) {
                     $value += $parsedData->$key;
@@ -242,12 +249,11 @@ class ExcelParser extends BaseObject {
             $cellIterator = $headerRow->getCellIterator();
             $cellIterator->setIterateOnlyExistingCells(TRUE);
             foreach ($cellIterator as $cell) {
-                /** @var $cell \PHPExcel_Cell */
                 $value = "" . $cell->getCalculatedValue();
                 $lower = trim(strtolower($value));
                 if (ArrayHelper::keyExists($lower, $this->fields, false)) {
-                    // PHP excel for some reason counts from 1 or 0 inconsistently
-                    $this->headerColumns[$this->fields[$lower]] = \PHPExcel_Cell::columnIndexFromString($cell->getColumn()) - 1;
+                    // http://118.190.26.40/service/PhpSpreadsheet/commit/8d7602059006677a739c67902a434b70aa7b234c
+                    $this->headerColumns[$this->fields[$lower]] = Coordinate::columnIndexFromString($cell->getColumn());
                     $found[] = $lower;
                 }
                 else {
@@ -305,13 +311,13 @@ class ExcelParser extends BaseObject {
             return new AllPseudoIterator($this->worksheet);
         }
         else if (!$this->chunkSize) {
-            Yii::trace("Begin excel open", __CLASS__);
-            $reader = \PHPExcel_IOFactory::createReaderForFile($this->fileName);
-            Yii::trace("Reader created", __CLASS__);
+            Yii::debug("Begin excel open", __CLASS__);
+            $reader = IOFactory::createReaderForFile($this->fileName);
+            Yii::debug("Reader created", __CLASS__);
             $excel = $reader->load($this->fileName);
-            Yii::trace("Excel Opened", __CLASS__);
+            Yii::debug("Excel Opened", __CLASS__);
             $this->worksheet = $this->getWorksheetFromExcelObj($excel);
-            Yii::trace("End excel open", __CLASS__);
+            Yii::debug("End excel open", __CLASS__);
             return new AllPseudoIterator($this->worksheet);
         }
         else {
@@ -319,7 +325,7 @@ class ExcelParser extends BaseObject {
         }
     }
 
-    private function getWorksheetFromExcelObj(\PHPExcel $excel)
+    private function getWorksheetFromExcelObj(Spreadsheet $excel)
     {
         if($this->worksheetName) {
             $worksheet = $excel->getSheetByName($this->worksheetName);
@@ -331,12 +337,12 @@ class ExcelParser extends BaseObject {
         return $excel->getActiveSheet();
     }
 
-    private function getFirstCellWithData($row) {
+    private function getFirstCellWithData(Row $row) {
         $cellIterator = $row->getCellIterator();
         try {
             $cellIterator->setIterateOnlyExistingCells(TRUE);
         }
-        catch (PHPExcel_Exception $e) {
+        catch (PhpSpreadsheetException $e) {
             // this happens when row is empty
             return null;
         }
@@ -357,7 +363,7 @@ class AllPseudoIterator {
 
     public $startRow = 1;
 
-    public function __construct($worksheet) {
+    public function __construct(Worksheet $worksheet) {
         $this->worksheet = $worksheet;
     }
 
@@ -377,7 +383,7 @@ class ChunkedPseudoIterator {
     private $fileName;
     /** @var ChunkReadFilter */
     private $filter;
-    /** @var \PHPExcel_Reader_Abstract */
+    /** @var BaseReader */
     private $reader;
 
     private $sheetInfo;
@@ -388,7 +394,7 @@ class ChunkedPseudoIterator {
     {
         $this->fileName = $fileName;
         $this->chunkSize = $chunkSize;
-        $this->reader = \PHPExcel_IOFactory::createReaderForFile($fileName);
+        $this->reader = IOFactory::createReaderForFile($fileName);
 
         // Get sheet and row/column info
         $sheets = $this->reader->listWorksheetInfo($this->fileName);
@@ -424,9 +430,9 @@ class ChunkedPseudoIterator {
             $this->filter->setRows($row, $this->chunkSize);
             //$this->filter->setMaxColumn($maxColumn);
             $this->reader->setReadFilter($this->filter);
-            $objPHPExcel = $this->reader->load($this->fileName);
-            $objPHPExcel->setActiveSheetIndexByName($this->sheetInfo['worksheetName']);
-            $sheet = $objPHPExcel->getActiveSheet();
+            $spreadsheet = $this->reader->load($this->fileName);
+            $spreadsheet->setActiveSheetIndexByName($this->sheetInfo['worksheetName']);
+            $sheet = $spreadsheet->getActiveSheet();
 
             $rangeEnd = min($row + $this->chunkSize, $sheet->getHighestRow() + 1);
 
@@ -440,8 +446,8 @@ class ChunkedPseudoIterator {
                 }
             }
 
-            $objPHPExcel->disconnectWorksheets();
-            unset($objPHPExcel);
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
             if( ($row + $this->chunkSize) > $this->sheetInfo['totalRows']) {
                 $ended =true;
             }
@@ -451,7 +457,7 @@ class ChunkedPseudoIterator {
 
 }
 
-class ChunkReadFilter implements \PHPExcel_Reader_IReadFilter
+class ChunkReadFilter implements IReadFilter
 {
     private $_startRow = 0;
     private $_endRow = 0;
@@ -468,7 +474,7 @@ class ChunkReadFilter implements \PHPExcel_Reader_IReadFilter
     public function setMaxColumn($maxColumn)
     {
         $this->_maxColumn    = $maxColumn;
-        $this->_maxColumnIndex = \PHPExcel_Cell::columnIndexFromString($maxColumn);
+        $this->_maxColumnIndex = Coordinate::columnIndexFromString($maxColumn);
     }
 
     public function setWorksheet($worksheetName)
@@ -480,7 +486,7 @@ class ChunkReadFilter implements \PHPExcel_Reader_IReadFilter
     {
         if($this->_worksheetName == 0 || $this->_worksheetName == $worksheetName)
         {
-            if( $this->_maxColumn == 0 || $this->_maxColumnIndex <=  \PHPExcel_Cell::columnIndexFromString($column))
+            if( $this->_maxColumn == 0 || $this->_maxColumnIndex <=  Coordinate::columnIndexFromString($column))
             {
                 if (($this->_startRow == 0) || ($row == 1) || ($row >= $this->_startRow && $row < $this->_endRow))
                 {
