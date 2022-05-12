@@ -341,6 +341,7 @@ class ExcelParser extends BaseObject {
         $cellIterator = $row->getCellIterator();
         try {
             $cellIterator->setIterateOnlyExistingCells(TRUE);
+            $cellIterator->rewind();
         }
         catch (PhpSpreadsheetException $e) {
             // this happens when row is empty
